@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 
 import { useConversationId } from "#/hooks/use-conversation-id";
 import { useConversationPanelRoute } from "#/hooks/use-conversation-panel-route";
-import { useCommandStore } from "#/stores/command-store";
 import { useConversationStore } from "#/stores/conversation-store";
 import { useAgentStore } from "#/stores/agent-store";
 import { useConversationStateStore } from "#/stores/conversation-state-store";
@@ -78,7 +77,6 @@ function AppContent() {
   const { data: conversation, isFetched } = useActiveConversation();
   const { data: isAuthed } = useIsAuthed();
   const { resetConversationState } = useConversationStore();
-  const clearTerminal = useCommandStore((state) => state.clearTerminal);
   const resetConversationRuntimeState = useConversationStateStore(
     (state) => state.reset,
   );
@@ -94,14 +92,12 @@ function AppContent() {
   // preloaded-history re-seed (see the note there) — clearing it here would run
   // too late and wipe the freshly seeded history on a conversation switch.
   React.useEffect(() => {
-    clearTerminal();
     resetConversationState();
     resetConversationRuntimeState();
     setCurrentAgentState(AgentState.LOADING);
     removeErrorMessage();
   }, [
     conversationId,
-    clearTerminal,
     resetConversationState,
     resetConversationRuntimeState,
     setCurrentAgentState,

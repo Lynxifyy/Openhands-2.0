@@ -29771,6 +29771,24 @@
     "ca": "Encara no hi ha sortida de terminal. Les ordres executades per l'agent apareixeran aquí.",
     "id": "Belum ada keluaran terminal. Perintah yang dijalankan agen akan muncul di sini."
   },
+  "TERMINAL$STILL_RUNNING": {
+    "en": "Still running...",
+    "ja": "まだ実行中...",
+    "zh-CN": "仍在运行...",
+    "zh-TW": "仍在執行...",
+    "ko-KR": "아직 실행 중...",
+    "no": "Kjører fortsatt...",
+    "it": "Ancora in esecuzione...",
+    "pt": "Ainda em execução...",
+    "es": "Aún en ejecución...",
+    "ar": "لا يزال قيد التشغيل...",
+    "de": "Läuft noch...",
+    "fr": "Toujours en cours...",
+    "tr": "Hâlâ çalışıyor...",
+    "uk": "Усе ще виконується...",
+    "ca": "Encara en execució...",
+    "id": "Masih berjalan..."
+  },
   "COMMON$IN_PROGRESS": {
     "en": "In Progress",
     "ja": "進行中",

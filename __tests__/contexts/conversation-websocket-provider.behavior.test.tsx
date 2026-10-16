@@ -11,11 +11,11 @@ import type { AppConversation } from "#/api/conversation-service/agent-server-co
 import type { MessageEvent as AgentMessageEvent } from "#/types/agent-server/core/events/message-event";
 import type { OpenHandsEvent } from "#/types/agent-server/core";
 import { useEventStore } from "#/stores/use-event-store";
+import { deriveTerminalCommands } from "#/utils/terminal-events";
 import { useErrorMessageStore } from "#/stores/error-message-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { useConversationStateStore } from "#/stores/conversation-state-store";
 import { useConversationStore } from "#/stores/conversation-store";
-import { useCommandStore } from "#/stores/command-store";
 import { useBrowserStore } from "#/stores/browser-store";
 import { useGoalStore } from "#/stores/goal-store";
 import { useModelStore } from "#/stores/model-store";
@@ -379,7 +379,6 @@ describe("Conversation websocket behavior", () => {
       conversationMode: "code",
       planContent: null,
     });
-    useCommandStore.getState().clearTerminal();
     useBrowserStore.getState().reset();
     useGoalStore.setState({ statusByConversation: {} });
     useModelStore.getState().clearAll();
@@ -1161,7 +1160,9 @@ describe("Conversation websocket behavior", () => {
         reset: false,
       }),
     );
-    expect(useCommandStore.getState().commands).toContainEqual({
+    expect(
+      deriveTerminalCommands(useEventStore.getState().events),
+    ).toContainEqual({
       type: "input",
       content: "pwd",
     });
@@ -1277,7 +1278,9 @@ describe("Conversation websocket behavior", () => {
         ],
       }),
     );
-    expect(useCommandStore.getState().commands).toContainEqual({
+    expect(
+      deriveTerminalCommands(useEventStore.getState().events),
+    ).toContainEqual({
       type: "output",
       content: "line one\nline two",
     });
@@ -2080,7 +2083,9 @@ describe("Conversation websocket behavior", () => {
         reset: false,
       }),
     );
-    expect(useCommandStore.getState().commands).toContainEqual({
+    expect(
+      deriveTerminalCommands(useEventStore.getState().events),
+    ).toContainEqual({
       type: "input",
       content: "cat PLAN.md",
     });
@@ -2153,7 +2158,9 @@ describe("Conversation websocket behavior", () => {
         ],
       }),
     );
-    expect(useCommandStore.getState().commands).toContainEqual({
+    expect(
+      deriveTerminalCommands(useEventStore.getState().events),
+    ).toContainEqual({
       type: "output",
       content: "plan output\nsecond line",
     });

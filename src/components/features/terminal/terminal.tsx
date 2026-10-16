@@ -1,19 +1,25 @@
+import React from "react";
 import { useTerminal } from "#/hooks/use-terminal";
 import "@xterm/xterm/css/xterm.css";
 import { RUNTIME_INACTIVE_STATES } from "#/types/agent-state";
 import { cn } from "#/utils/utils";
 import { WaitingForRuntimeMessage } from "../chat/waiting-for-runtime-message";
 import { useAgentState } from "#/hooks/use-agent-state";
-import { useCommandStore } from "#/stores/command-store";
+import { useEventStore } from "#/stores/use-event-store";
+import { deriveTerminalCommands } from "#/utils/terminal-events";
 import { EmptyTerminalMessage } from "./empty-terminal-message";
 
 function Terminal() {
   const { curAgentState } = useAgentState();
-  const commands = useCommandStore((state) => state.commands);
+  const events = useEventStore((state) => state.events);
+  const commands = React.useMemo(
+    () => deriveTerminalCommands(events),
+    [events],
+  );
+  const hasCommands = commands.length > 0;
 
   const isRuntimeInactive = RUNTIME_INACTIVE_STATES.includes(curAgentState);
-  const hasOutput = commands.length > 0;
-  const hideTerminalSurface = isRuntimeInactive || !hasOutput;
+  const hideTerminalSurface = isRuntimeInactive || !hasCommands;
 
   const ref = useTerminal();
 
@@ -21,7 +27,7 @@ function Terminal() {
     <div className="relative flex h-full min-h-0 flex-col">
       {isRuntimeInactive && <WaitingForRuntimeMessage className="pt-16" />}
 
-      {!isRuntimeInactive && !hasOutput && <EmptyTerminalMessage />}
+      {!isRuntimeInactive && !hasCommands && <EmptyTerminalMessage />}
 
       <div
         className={cn(

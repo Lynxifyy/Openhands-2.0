@@ -18,7 +18,6 @@ import { useEventStore } from "#/stores/use-event-store";
 import { useErrorMessageStore } from "#/stores/error-message-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { useConversationStateStore } from "#/stores/conversation-state-store";
-import { useCommandStore } from "#/stores/command-store";
 import { useBrowserStore } from "#/stores/browser-store";
 import { useGoalStore } from "#/stores/goal-store";
 import {
@@ -31,8 +30,6 @@ import {
   isAgentStatusConversationStateUpdateEvent,
   isStatsConversationStateUpdateEvent,
   isGoalConversationStateUpdateEvent,
-  isExecuteBashActionEvent,
-  isExecuteBashObservationEvent,
   isDisplayableErrorEvent,
   isPlanningFileEditorObservationEvent,
   isBrowserObservationEvent,
@@ -248,7 +245,7 @@ export function ConversationWebSocketProvider({
     (state) => state.consumeMatchingPendingMessage,
   );
   const { setExecutionStatus } = useConversationStateStore();
-  const { appendInput, appendOutput } = useCommandStore();
+
   const resetBrowserStore = useBrowserStore((state) => state.reset);
 
   // Coalesce streaming deltas to ≤1 store commit/render per frame.
@@ -764,21 +761,6 @@ export function ConversationWebSocketProvider({
             }
           }
 
-          // Handle ExecuteBashAction events - add command as input to terminal
-          if (isExecuteBashActionEvent(event)) {
-            appendInput(event.action.command);
-          }
-
-          // Handle ExecuteBashObservation events - add output to terminal
-          if (isExecuteBashObservationEvent(event)) {
-            // Extract text content from the observation content array
-            const textContent = event.observation.content
-              .filter((c) => c.type === "text")
-              .map((c) => c.text)
-              .join("\n");
-            appendOutput(textContent);
-          }
-
           // Handle BrowserObservation events - update browser store with screenshot
           if (isBrowserObservationEvent(event)) {
             const { screenshot_data: screenshotData } = event.observation;
@@ -911,8 +893,6 @@ export function ConversationWebSocketProvider({
       queryClient,
       conversationId,
       setExecutionStatus,
-      appendInput,
-      appendOutput,
       updateMetricsFromStats,
       handleNonErrorEvent,
     ],
@@ -1062,21 +1042,6 @@ export function ConversationWebSocketProvider({
             }
           }
 
-          // Handle ExecuteBashAction events - add command as input to terminal
-          if (isExecuteBashActionEvent(event)) {
-            appendInput(event.action.command);
-          }
-
-          // Handle ExecuteBashObservation events - add output to terminal
-          if (isExecuteBashObservationEvent(event)) {
-            // Extract text content from the observation content array
-            const textContent = event.observation.content
-              .filter((c) => c.type === "text")
-              .map((c) => c.text)
-              .join("\n");
-            appendOutput(textContent);
-          }
-
           // Handle PlanningFileEditorObservation - only update plan for Plan.md
           if (isPlanningFileEditorObservationEvent(event)) {
             const { path } = event.observation;
@@ -1128,10 +1093,6 @@ export function ConversationWebSocketProvider({
       planningConversationId,
       conversationId,
       setExecutionStatus,
-      appendInput,
-      appendOutput,
-      readConversationFile,
-      setPlanContent,
       updateMetricsFromStats,
       handleNonErrorEvent,
     ],
