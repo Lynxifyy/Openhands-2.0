@@ -14,7 +14,6 @@ import { useEventStore } from "#/stores/use-event-store";
 import useMetricsStore from "#/stores/metrics-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { useBrowserStore } from "#/stores/browser-store";
-import { useCommandStore } from "#/stores/command-store";
 import { useErrorMessageStore } from "#/stores/error-message-store";
 import { useConversationStateStore } from "#/stores/conversation-state-store";
 import { useGoalStore } from "#/stores/goal-store";
@@ -167,7 +166,7 @@ describe("ConversationWebSocketProvider — conversation-scoped event store", ()
     useOptimisticUserMessageStore.getState().clearPendingMessages();
     useBrowserStore.getState().reset();
     useMetricsStore.getState().resetMetrics();
-    useCommandStore.setState({ commands: [] });
+
     useErrorMessageStore.getState().removeErrorMessage();
     useConversationStateStore.getState().reset();
     useGoalStore.setState({ statusByConversation: {} });
@@ -635,7 +634,7 @@ describe("ConversationWebSocketProvider — conversation-scoped event store", ()
         wsCapture.mainOnMessage!({ data: durable(event) });
       });
 
-    it("does not re-append terminal input/output for replayed bash events", async () => {
+    it("does not double-store replayed bash events in the log the terminal derives from", async () => {
       await renderCaptured();
 
       const action = makeBashAction("bash-action-1", "echo hi");
@@ -651,10 +650,17 @@ describe("ConversationWebSocketProvider — conversation-scoped event store", ()
       deliver(action);
       deliver(observation);
 
-      expect(useCommandStore.getState().commands).toEqual([
-        { content: "echo hi", type: "input" },
-        { content: "hi\n", type: "output" },
-      ]);
+      // The terminal transcript is a pure function of the stored events, so
+      // de-duplication is what keeps a replayed command from rendering twice.
+      expect(
+        useEventStore
+          .getState()
+          .events.filter((event) =>
+            ["bash-action-1", "bash-obs-1"].includes(String(event.id)),
+          )
+          .map((event) => event.id)
+          .sort(),
+      ).toEqual(["bash-action-1", "bash-obs-1"]);
     });
 
     it("does not re-raise a dismissed error banner when the error event is replayed", async () => {

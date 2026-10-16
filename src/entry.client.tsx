@@ -14,12 +14,18 @@ import {
 import { installMarsWebBridge } from "./api/mars/mars-web-bridge";
 import { waitForI18n } from "./i18n";
 import { shouldStartMockWorker } from "./mocks/should-start-mock-worker";
+import { isNativeShell } from "./utils/native-shell";
 
 async function prepareApp() {
   // DigitalOcean Managed Agents in the browser: present only when the server
   // this page came from hosts the MARS bridge (scripts/mars-web-bridge.mjs).
   // Must settle before render — the UI reads `window.marsBridge` synchronously.
-  await Promise.all([waitForI18n(), installMarsWebBridge()]);
+  // Skipped in the native shell, where the bridge can never run (the Android
+  // WebView has no server hosting it), so the probe would only waste a request.
+  const marsBridge = isNativeShell()
+    ? Promise.resolve(false)
+    : installMarsWebBridge();
+  await Promise.all([waitForI18n(), marsBridge]);
 
   if (shouldStartMockWorker()) {
     const { worker } = await import("./mocks/browser");

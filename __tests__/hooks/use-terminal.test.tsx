@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it, vi, afterEach } from "vitest";
 import { useTerminal } from "#/hooks/use-terminal";
-import { Command, useCommandStore } from "#/stores/command-store";
+import { useEventStore, type OHEvent } from "#/stores/use-event-store";
 import { renderWithProviders } from "../../test-utils";
 
 // Mock useActiveConversation
@@ -22,6 +22,49 @@ function TestTerminalComponent() {
   const ref = useTerminal();
   return <div ref={ref} />;
 }
+
+const makeBashAction = (id: string, command: string): OHEvent =>
+  ({
+    id,
+    timestamp: "2026-01-01T00:00:00Z",
+    source: "agent",
+    thought: [],
+    thinking_blocks: [],
+    action: {
+      kind: "ExecuteBashAction",
+      command,
+      is_input: false,
+      timeout: null,
+      reset: false,
+    },
+    tool_name: "execute_bash",
+    tool_call_id: `call-${id}`,
+    llm_response_id: `resp-${id}`,
+    security_risk: "UNKNOWN",
+  }) as unknown as OHEvent;
+
+const makeBashObservation = (
+  id: string,
+  text: string,
+  { exitCode = 0, timeout = false } = {},
+): OHEvent =>
+  ({
+    id,
+    timestamp: "2026-01-01T00:00:00Z",
+    source: "environment",
+    action_id: `act-${id}`,
+    tool_name: "execute_bash",
+    tool_call_id: `call-${id}`,
+    observation: {
+      kind: "ExecuteBashObservation",
+      content: [{ type: "text", text }],
+      command: "run",
+      exit_code: exitCode,
+      error: false,
+      timeout,
+      metadata: { exit_code: exitCode },
+    },
+  }) as unknown as OHEvent;
 
 // Terminal is read-only - no longer tests user input functionality
 const mockTerminal = vi.hoisted(() => ({
@@ -76,8 +119,13 @@ describe("useTerminal", () => {
 
   afterEach(() => {
     vi.clearAllMocks();
-    // Reset command store between tests
-    useCommandStore.setState({ commands: [] });
+    // The terminal is derived from the shared event log between tests.
+    useEventStore.setState({
+      events: [],
+      eventIds: new Set(),
+      uiEvents: [],
+      loadedConversationId: null,
+    });
   });
 
   it("should render", () => {
@@ -85,18 +133,36 @@ describe("useTerminal", () => {
   });
 
   it("should render the commands in the terminal", () => {
-    const commands: Command[] = [
-      { content: "echo hello", type: "input" },
-      { content: "hello", type: "output" },
-    ];
-
-    // Set commands in store before rendering to ensure they're picked up during initialization
-    useCommandStore.setState({ commands });
+    // Seed the event log the terminal derives its transcript from.
+    useEventStore.setState({
+      events: [
+        makeBashAction("1", "echo hello"),
+        makeBashObservation("2", "hello"),
+      ],
+    });
 
     renderWithProviders(<TestTerminalComponent />);
 
     expect(mockTerminal.writeln).toHaveBeenNthCalledWith(1, "echo hello");
     expect(mockTerminal.writeln).toHaveBeenNthCalledWith(2, "hello");
+  });
+
+  it("should mark a command that hit the soft timeout as still running", () => {
+    useEventStore.setState({
+      events: [
+        makeBashAction("1", "sleep 100"),
+        makeBashObservation("2", "partial output", {
+          exitCode: -1,
+          timeout: true,
+        }),
+      ],
+    });
+
+    renderWithProviders(<TestTerminalComponent />);
+
+    expect(mockTerminal.writeln).toHaveBeenCalledWith(
+      "  ⏳ TERMINAL$STILL_RUNNING",
+    );
   });
 
   it("should not call fit() when terminal.element is null", () => {

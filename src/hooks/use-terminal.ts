@@ -1,9 +1,15 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import React from "react";
+import i18n from "#/i18n";
+import { I18nKey } from "#/i18n/declaration";
 import { useColorTheme } from "#/hooks/use-color-theme";
 import { getTerminalTheme } from "#/themes/terminal-themes";
-import { Command, useCommandStore } from "#/stores/command-store";
+import { useEventStore } from "#/stores/use-event-store";
+import {
+  deriveTerminalCommands,
+  type TerminalCommand,
+} from "#/utils/terminal-events";
 import { parseTerminalOutput } from "#/utils/parse-terminal-output";
 
 /*
@@ -11,23 +17,19 @@ import { parseTerminalOutput } from "#/utils/parse-terminal-output";
   The reason for this is that the hook exposes a ref that requires a DOM element to be rendered.
 */
 
-const renderCommand = (
-  command: Command,
-  terminal: Terminal,
-  isUserInput: boolean = false,
-) => {
+const renderCommand = (command: TerminalCommand, terminal: Terminal) => {
   const { content, type } = command;
-
-  // Skip rendering user input commands that come from the event stream
-  // as they've already been displayed in the terminal as the user typed
-  if (type === "input" && isUserInput) {
-    return;
-  }
 
   const trimmedContent = (content || "").replaceAll("\n", "\r\n").trim();
   // Only write if there's actual content to avoid empty newlines
   if (trimmedContent) {
     terminal.writeln(parseTerminalOutput(trimmedContent));
+  }
+
+  // A command the agent started but that has not finished is called out so the
+  // user does not read the empty tail as "the command produced nothing".
+  if (type === "running") {
+    terminal.writeln(`  ⏳ ${i18n.t(I18nKey.TERMINAL$STILL_RUNNING)}`);
   }
 };
 
@@ -93,7 +95,11 @@ const persistentLastCommandIndex = { current: 0 };
 
 export const useTerminal = () => {
   const colorTheme = useColorTheme();
-  const commands = useCommandStore((state) => state.commands);
+  const events = useEventStore((state) => state.events);
+  const commands = React.useMemo(
+    () => deriveTerminalCommands(events),
+    [events],
+  );
   const terminal = React.useRef<Terminal | null>(null);
   const fitAddon = React.useRef<FitAddon | null>(null);
   const ref = React.useRef<HTMLDivElement>(null);
@@ -157,7 +163,7 @@ export const useTerminal = () => {
           }
           // Don't pass isUserInput=true here because we're initializing the terminal
           // and need to show all previous commands
-          renderCommand(commands[i], terminal.current, false);
+          renderCommand(commands[i], terminal.current);
         }
         lastCommandIndex.current = commands.length;
       }
@@ -190,9 +196,7 @@ export const useTerminal = () => {
         if (commands[i].type === "input") {
           terminal.current.write("$ ");
         }
-        // Pass true for isUserInput to skip rendering user input commands
-        // that have already been displayed as the user typed
-        renderCommand(commands[i], terminal.current, false);
+        renderCommand(commands[i], terminal.current);
       }
       lastCommandIndex.current = commands.length;
     }

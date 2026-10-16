@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { useCommandStore } from "#/stores/command-store";
+import { useEventStore, type OHEvent } from "#/stores/use-event-store";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { AgentState } from "#/types/agent-state";
 
@@ -30,9 +30,32 @@ vi.mock("@xterm/addon-fit", () => ({
 import { renderWithProviders } from "test-utils";
 import Terminal from "#/components/features/terminal/terminal";
 
+const bashObservation: OHEvent = {
+  id: "obs-1",
+  timestamp: "2026-01-01T00:00:00Z",
+  source: "environment",
+  action_id: "act-1",
+  tool_name: "execute_bash",
+  tool_call_id: "call-1",
+  observation: {
+    kind: "ExecuteBashObservation",
+    content: [{ type: "text", text: "hello" }],
+    command: "run",
+    exit_code: 0,
+    error: false,
+    timeout: false,
+    metadata: { exit_code: 0 },
+  },
+} as unknown as OHEvent;
+
 describe("Terminal empty state", () => {
   beforeEach(() => {
-    useCommandStore.setState({ commands: [] });
+    useEventStore.setState({
+      events: [],
+      eventIds: new Set(),
+      uiEvents: [],
+      loadedConversationId: null,
+    });
     vi.mocked(useAgentState).mockReturnValue({
       curAgentState: AgentState.RUNNING,
     });
@@ -51,9 +74,7 @@ describe("Terminal empty state", () => {
   });
 
   it("hides the empty state when terminal commands exist", () => {
-    useCommandStore.setState({
-      commands: [{ type: "output", content: "hello" }],
-    });
+    useEventStore.setState({ events: [bashObservation] });
 
     renderWithProviders(<Terminal />);
 
