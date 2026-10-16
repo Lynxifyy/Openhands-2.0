@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Capacitor's generated AppTheme references these but does not define
+         them; without this file the Gradle build fails with
+         "resource color/colorPrimary not found". -->
+    <color name="colorPrimary">#1F2937</color>
+    <color name="colorPrimaryDark">#111827</color>
+    <color name="colorAccent">#4F46E5</color>
+</resources>

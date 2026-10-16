@@ -1,0 +1,119 @@
+name: Android APK
+
+# Builds the Agent Canvas Android app: the static web bundle is copied into the
+# Capacitor Android project (`npx cap sync android`) and Gradle produces a
+# debug APK for QA plus a release APK attached to the GitHub Release.
+#
+#   pull_request:      smoke build + uploaded APK artifact for manual testing.
+#   release published: rebuilds from the release tag and attaches the APK to the
+#                      GitHub Release created by release-please.
+#   workflow_dispatch: manual escape hatch for any ref.
+#
+# The release APK is signed with the debug keystore so it installs on a device
+# (`adb install -r`). Publishing to Google Play would need a real upload
+# keystore in secrets; that is deliberately out of scope here.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/build.yml
+      - android/**
+      - capacitor.config.ts
+      - src/**
+      - package.json
+      - package-lock.json
+  release:
+    types: [published]
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# `gh release upload` needs contents: write on release events. Fork PR runs are
+# downgraded to a read-only token by GitHub automatically.
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js with npm cache
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web bundle
+        run: npm run build:app
+
+      - name: Sync Capacitor Android project
+        run: npx cap sync android
+
+      - name: Stamp version from package.json
+        id: version
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          # Android versionCode must be a monotonic positive integer; derive it
+          # from the semver components so each release is strictly increasing.
+          code="$(node -p "
+            const [maj, min, pat] = require('./package.json').version
+              .split('-')[0].split('.').map((n) => parseInt(n, 10));
+            maj * 1000000 + min * 1000 + (pat || 0);
+          ")"
+          echo "name=$version" >> "$GITHUB_OUTPUT"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          sed -i -E "s/versionCode [0-9]+/versionCode $code/" android/app/build.gradle
+          sed -i -E "s/versionName \"[^\"]*\"/versionName \"$version\"/" android/app/build.gradle
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Build release APK (debug-signed for sideloading)
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Collect APKs
+        run: |
+          set -euo pipefail
+          mkdir -p dist-android
+          cp android/app/build/outputs/apk/debug/app-debug.apk \
+            "dist-android/agent-canvas-${{ steps.version.outputs.name }}-debug.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk \
+            "dist-android/agent-canvas-${{ steps.version.outputs.name }}.apk"
+          ls -la dist-android
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: agent-canvas-android-apk
+          path: dist-android/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Attach APKs to GitHub release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$RELEASE_TAG" dist-android/*.apk --clobber
