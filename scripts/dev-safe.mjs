@@ -46,14 +46,16 @@ export const VSCODE_BASE_PATH = SHARED_DEFAULTS.paths.vscodeBasePath;
 const DEFAULT_VITE_PORT = 3001;
 const DEFAULT_WAIT_TIMEOUT_MS = 30_000;
 const DEFAULT_AGENT_SERVER_PACKAGE = SHARED_DEFAULTS.packages.agentServer;
-const AGENT_SERVER_GIT_REPO = "https://github.com/OpenHands/software-agent-sdk";
+// The SDK fork the app provisions its own backend from by default. Pinned in
+// config/defaults.json so the npm launcher and the Docker image agree.
+const AGENT_SERVER_GIT_REPO = SHARED_DEFAULTS.sdkSource.gitRepo;
+const DEFAULT_AGENT_SERVER_GIT_REF = SHARED_DEFAULTS.sdkSource.gitRef;
 const LOCAL_AGENT_SERVER_SUBDIRS = [
   "openhands-agent-server",
   "openhands-sdk",
   "openhands-tools",
   "openhands-workspace",
 ];
-const DEFAULT_AGENT_SERVER_VERSION = SHARED_DEFAULTS.versions.agentServer;
 const DEFAULT_AGENT_SERVER_TELEMETRY_POSTHOG_API_KEY =
   SHARED_DEFAULTS.telemetry.posthogApiKey;
 const DEFAULT_AGENT_SERVER_TELEMETRY_POSTHOG_HOST =
@@ -417,11 +419,13 @@ export const AGENT_SERVER_IMPORT_MODULES = "canvas_ui_tool";
  *   edits are picked up without a manual reinstall. The agent-server itself
  *   is rebuilt from local source on each invocation (--reinstall).
  * - OH_AGENT_SERVER_GIT_REF: Git commit SHA or branch name
- * - OH_AGENT_SERVER_VERSION: Specific PyPI version (e.g., "1.55.0")
+ * - OH_AGENT_SERVER_VERSION: Specific PyPI version (e.g., "1.55.0"), which
+ *   opts back into the stock OpenHands release.
  *
- * If none are set, defaults to the released version specified by
- * DEFAULT_AGENT_SERVER_VERSION. Set OH_AGENT_SERVER_GIT_REF to use a
- * git branch or commit instead.
+ * With none set, defaults to the pinned SDK fork in config/defaults.json
+ * (`sdkSource.gitRef`). The app ships that fork's DeepSeek v4/DSML and
+ * announced-action fixes, so the default install is the fork rather than
+ * stock PyPI.
  *
  * @param {Record<string, string | undefined>} env
  * @returns {{ command: string, args: string[], source: string }}
@@ -455,17 +459,25 @@ export function buildAgentServerCommand(env = process.env) {
       "agent-server",
     );
     source = `local (${localPath})`;
-  } else if (gitRef) {
+  } else if (gitRef || !version) {
     // Use git ref with subdirectory syntax for uv workspace monorepo.
     // The software-agent-sdk repo has packages in subdirectories:
     // openhands-agent-server/, openhands-sdk/, openhands-tools/, openhands-workspace/
     // All four must come from the same ref so inter-package APIs stay in sync.
     //
+    // An explicit OH_AGENT_SERVER_GIT_REF wins; with neither that nor
+    // OH_AGENT_SERVER_VERSION set, the pinned fork ref from
+    // config/defaults.json is the default — the app ships that fork's
+    // DeepSeek v4/DSML and announced-action fixes, so a stock-PyPI backend
+    // would not have them. Setting OH_AGENT_SERVER_VERSION opts back into
+    // stock PyPI.
+    //
     // --reinstall is required because the git branch may carry the same version
     // string as the current PyPI release (e.g. both "1.26.0"). Without it, uv
     // silently reuses the cached PyPI wheels and the git ref is never actually
     // used, even though it was explicitly requested.
-    const baseGitUrl = `git+${AGENT_SERVER_GIT_REPO}@${gitRef}`;
+    const ref = gitRef || DEFAULT_AGENT_SERVER_GIT_REF;
+    const baseGitUrl = `git+${AGENT_SERVER_GIT_REPO}@${ref}`;
     uvxArgs.push(
       "--reinstall",
       "--from",
@@ -480,11 +492,10 @@ export function buildAgentServerCommand(env = process.env) {
       AGENT_SERVER_POSTHOG_CONSTRAINT,
       "agent-server",
     );
-    source = `git (${gitRef})`;
-  } else if (version) {
-    // Use specific PyPI version: uvx --from openhands-agent-server==version agent-server
-    // The package name differs from the executable name, so we need --from syntax
-    // Pin all SDK packages to the same version for consistency
+    source = gitRef ? `git (${ref})` : `git (${ref}, default)`;
+  } else {
+    // Explicit OH_AGENT_SERVER_VERSION: stock PyPI release, all SDK packages
+    // pinned to the same version for consistency.
     uvxArgs.push(
       "--from",
       `${DEFAULT_AGENT_SERVER_PACKAGE}==${version}`,
@@ -498,22 +509,6 @@ export function buildAgentServerCommand(env = process.env) {
     uvxArgs.push("--with", AGENT_SERVER_POSTHOG_CONSTRAINT);
     uvxArgs.push("agent-server");
     source = `PyPI (${version})`;
-  } else {
-    // Default to released PyPI version
-    // Pin all SDK packages to the same version for consistency
-    uvxArgs.push(
-      "--from",
-      `${DEFAULT_AGENT_SERVER_PACKAGE}==${DEFAULT_AGENT_SERVER_VERSION}`,
-      "--with",
-      `openhands-sdk==${DEFAULT_AGENT_SERVER_VERSION}`,
-      "--with",
-      `openhands-tools==${DEFAULT_AGENT_SERVER_VERSION}`,
-      "--with",
-      `openhands-workspace==${DEFAULT_AGENT_SERVER_VERSION}`,
-    );
-    uvxArgs.push("--with", AGENT_SERVER_POSTHOG_CONSTRAINT);
-    uvxArgs.push("agent-server");
-    source = `PyPI (${DEFAULT_AGENT_SERVER_VERSION}, default)`;
   }
 
   // Everything after the executable name is an agent-server CLI argument.

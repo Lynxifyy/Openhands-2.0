@@ -75,7 +75,13 @@ FROM ${AGENT_SERVER_IMAGE} AS final
 
 ARG AUTOMATION_VERSION
 ARG AGENT_SERVER_VERSION
-ARG AGENT_SERVER_SDK_GIT_REF=""
+# SDK source installed over the agent-server base image. The defaults mirror
+# config/defaults.json (`sdkSource`): the fork carrying the DeepSeek v4/DSML
+# and announced-action fixes. docker.yml passes both from that config; the
+# values here keep a direct `docker build` on the same fork. Pass an empty
+# AGENT_SERVER_SDK_GIT_REF to keep the base image's stock SDK.
+ARG AGENT_SERVER_SDK_GIT_REPO="https://github.com/Lynxifyy/software-agent-sdk-2.0"
+ARG AGENT_SERVER_SDK_GIT_REF="bb614320a42bd1be9dbce009b816c3a8061ed4b8"
 ARG OPENHANDS_BUILD_GIT_SHA=unknown
 ARG OPENHANDS_BUILD_GIT_REF=unknown
 ARG VITE_BASE_PATH="/canvas"
@@ -127,7 +133,7 @@ RUN uv pip install --system "openhands-automation==${AUTOMATION_VERSION}" "openh
     || pip install --no-cache-dir "openhands-automation==${AUTOMATION_VERSION}" "openhands-tools==${AGENT_SERVER_VERSION}"
 
 RUN if [ -n "${AGENT_SERVER_SDK_GIT_REF}" ]; then \
-      BASE_GIT_URL="git+https://github.com/OpenHands/software-agent-sdk@${AGENT_SERVER_SDK_GIT_REF}" && \
+      BASE_GIT_URL="git+${AGENT_SERVER_SDK_GIT_REPO}@${AGENT_SERVER_SDK_GIT_REF}" && \
       uv pip install --system --force-reinstall \
         "${BASE_GIT_URL}#subdirectory=openhands-sdk" \
         "${BASE_GIT_URL}#subdirectory=openhands-tools" \

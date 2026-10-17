@@ -38,6 +38,10 @@ Default stack versions:
   agent-server:    ${defaults.versions.agentServer}
   automation:      ${defaults.versions.automation}
 
+SDK source (installed when the app provisions its own backend):
+  repo:            ${defaults.sdkSource?.gitRepo ?? "(stock PyPI)"}
+  ref:             ${defaults.sdkSource?.gitRef ?? "(none)"}
+
 Compatibility:
   agent-server:    >= ${defaults.compatibility.minimumAgentServer}
 

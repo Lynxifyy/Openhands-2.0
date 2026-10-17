@@ -507,27 +507,51 @@ describe("buildAgentServerTelemetryEnv", () => {
 });
 
 describe("buildAgentServerCommand", () => {
-  it("uses released PyPI version by default with all packages pinned", () => {
+  // The pinned fork the app installs by default (config/defaults.json sdkSource).
+  const defaults = JSON.parse(
+    readFileSync(
+      path.join(__dirname, "..", "..", "config", "defaults.json"),
+      "utf-8",
+    ),
+  );
+  const SDK_GIT_REPO = defaults.sdkSource.gitRepo;
+  const SDK_GIT_REF = defaults.sdkSource.gitRef;
+
+  it("defaults to the pinned SDK fork with all packages from the same ref", () => {
     const cmd = buildAgentServerCommand({});
 
     expect(cmd.command).toBe("uvx");
-    // Defaults to the released PyPI version with all SDK packages pinned to same version
+    // No OH_AGENT_SERVER_* override: the app provisions its backend from the
+    // fork pinned in config/defaults.json, so the DeepSeek v4/DSML and
+    // announced-action fixes ship by default.
+    const baseGitUrl = `git+${SDK_GIT_REPO}@${SDK_GIT_REF}`;
     expect(cmd.args).toEqual([
+      "--reinstall",
       "--from",
-      "openhands-agent-server==1.55.0",
+      `${baseGitUrl}#subdirectory=openhands-agent-server`,
       "--with",
-      "openhands-sdk==1.55.0",
+      `${baseGitUrl}#subdirectory=openhands-sdk`,
       "--with",
-      "openhands-tools==1.55.0",
+      `${baseGitUrl}#subdirectory=openhands-tools`,
       "--with",
-      "openhands-workspace==1.55.0",
+      `${baseGitUrl}#subdirectory=openhands-workspace`,
       "--with",
       "posthog>=6,<7",
       "agent-server",
       "--import-modules",
       "canvas_ui_tool",
     ]);
-    expect(cmd.source).toBe("PyPI (1.55.0, default)");
+    expect(cmd.source).toBe(`git (${SDK_GIT_REF}, default)`);
+  });
+
+  it("OH_AGENT_SERVER_VERSION opts out of the fork back to stock PyPI", () => {
+    const cmd = buildAgentServerCommand({ OH_AGENT_SERVER_VERSION: "1.55.0" });
+
+    expect(cmd.args).toContain("openhands-agent-server==1.55.0");
+    expect(cmd.args).not.toContain(
+      `git+${SDK_GIT_REPO}@${SDK_GIT_REF}#subdirectory=openhands-agent-server`,
+    );
+    expect(cmd.source).toBe("PyPI (1.55.0)");
   });
 
   it("uses specific PyPI version when OH_AGENT_SERVER_VERSION is set with all packages pinned", () => {
@@ -563,13 +587,13 @@ describe("buildAgentServerCommand", () => {
     expect(cmd.args).toEqual([
       "--reinstall",
       "--from",
-      "git+https://github.com/OpenHands/software-agent-sdk@feature-branch#subdirectory=openhands-agent-server",
+      `git+${SDK_GIT_REPO}@feature-branch#subdirectory=openhands-agent-server`,
       "--with",
-      "git+https://github.com/OpenHands/software-agent-sdk@feature-branch#subdirectory=openhands-sdk",
+      `git+${SDK_GIT_REPO}@feature-branch#subdirectory=openhands-sdk`,
       "--with",
-      "git+https://github.com/OpenHands/software-agent-sdk@feature-branch#subdirectory=openhands-tools",
+      `git+${SDK_GIT_REPO}@feature-branch#subdirectory=openhands-tools`,
       "--with",
-      "git+https://github.com/OpenHands/software-agent-sdk@feature-branch#subdirectory=openhands-workspace",
+      `git+${SDK_GIT_REPO}@feature-branch#subdirectory=openhands-workspace`,
       "--with",
       "posthog>=6,<7",
       "agent-server",
@@ -586,13 +610,13 @@ describe("buildAgentServerCommand", () => {
     expect(cmd.args).toEqual([
       "--reinstall",
       "--from",
-      "git+https://github.com/OpenHands/software-agent-sdk@abc1234#subdirectory=openhands-agent-server",
+      `git+${SDK_GIT_REPO}@abc1234#subdirectory=openhands-agent-server`,
       "--with",
-      "git+https://github.com/OpenHands/software-agent-sdk@abc1234#subdirectory=openhands-sdk",
+      `git+${SDK_GIT_REPO}@abc1234#subdirectory=openhands-sdk`,
       "--with",
-      "git+https://github.com/OpenHands/software-agent-sdk@abc1234#subdirectory=openhands-tools",
+      `git+${SDK_GIT_REPO}@abc1234#subdirectory=openhands-tools`,
       "--with",
-      "git+https://github.com/OpenHands/software-agent-sdk@abc1234#subdirectory=openhands-workspace",
+      `git+${SDK_GIT_REPO}@abc1234#subdirectory=openhands-workspace`,
       "--with",
       "posthog>=6,<7",
       "agent-server",
@@ -611,7 +635,7 @@ describe("buildAgentServerCommand", () => {
     expect(cmd.command).toBe("uvx");
     expect(cmd.args).toContain("--from");
     expect(cmd.args).toContain(
-      "git+https://github.com/OpenHands/software-agent-sdk@feature-branch#subdirectory=openhands-agent-server",
+      `git+${SDK_GIT_REPO}@feature-branch#subdirectory=openhands-agent-server`,
     );
     expect(cmd.args).not.toContain("openhands-agent-server==1.18.0");
   });
@@ -651,7 +675,7 @@ describe("buildAgentServerCommand", () => {
     expect(cmd.source).toBe(`local (${sdk})`);
     expect(cmd.args).toContain(path.join(sdk, "openhands-agent-server"));
     expect(cmd.args).not.toContain(
-      "git+https://github.com/OpenHands/software-agent-sdk@feature-branch#subdirectory=openhands-agent-server",
+      `git+${SDK_GIT_REPO}@feature-branch#subdirectory=openhands-agent-server`,
     );
     expect(cmd.args).not.toContain("openhands-agent-server==1.18.0");
   });

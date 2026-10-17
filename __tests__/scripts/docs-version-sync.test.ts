@@ -36,8 +36,9 @@ describe("docs/example references stay in sync with config/defaults.json", () =>
     expect(localStackGuide).toContain(
       `\`OH_AGENT_SERVER_VERSION\` — specific PyPI version (e.g., "${agentServerVersion}")`,
     );
+    // The documented default is now the pinned SDK fork, not a PyPI release.
     expect(localStackGuide).toContain(
-      `Default: released PyPI version \`${agentServerVersion}\` for agent-server SDK libraries`,
+      "Default: the pinned SDK fork in `config/defaults.json` (`sdkSource.gitRepo`/`sdkSource.gitRef`)",
     );
   });
 
