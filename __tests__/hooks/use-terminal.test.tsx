@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it, vi, afterEach } from "vitest";
-import { useTerminal } from "#/hooks/use-terminal";
+import { useTerminal, useTerminalTranscript } from "#/hooks/use-terminal";
 import { useEventStore, type OHEvent } from "#/stores/use-event-store";
 import { renderWithProviders } from "../../test-utils";
 
@@ -19,7 +19,9 @@ vi.mock("#/contexts/conversation-websocket-context", () => ({
 }));
 
 function TestTerminalComponent() {
-  const ref = useTerminal();
+  // Mirrors the component: the transcript is derived once and handed to the
+  // terminal, so the hook renders exactly what the tab will show.
+  const ref = useTerminal(useTerminalTranscript());
   return <div ref={ref} />;
 }
 

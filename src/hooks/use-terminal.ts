@@ -89,21 +89,36 @@ function resolveTerminalForeground(host: HTMLElement): string {
   return getComputedStyle(host).color;
 }
 
-// Create a persistent reference that survives component unmounts
-// This ensures terminal history is preserved when navigating away and back
-const persistentLastCommandIndex = { current: 0 };
-
-export const useTerminal = () => {
-  const colorTheme = useColorTheme();
+/**
+ * The full terminal transcript: the agent's commands derived from the shared
+ * event log, followed by commands a person typed into the tab.
+ *
+ * Single derivation point, so the tab's emptiness check and what it renders
+ * can never disagree about which commands exist.
+ */
+export const useTerminalTranscript = (
+  typedCommands: TerminalCommand[] = [],
+): TerminalCommand[] => {
   const events = useEventStore((state) => state.events);
-  const commands = React.useMemo(
+  const agentCommands = React.useMemo(
     () => deriveTerminalCommands(events),
     [events],
   );
+  return React.useMemo(
+    () => [...agentCommands, ...typedCommands],
+    [agentCommands, typedCommands],
+  );
+};
+
+export const useTerminal = (commands: TerminalCommand[] = []) => {
+  const colorTheme = useColorTheme();
   const terminal = React.useRef<Terminal | null>(null);
   const fitAddon = React.useRef<FitAddon | null>(null);
   const ref = React.useRef<HTMLDivElement>(null);
-  const lastCommandIndex = persistentLastCommandIndex; // Use the persistent reference
+  // Per-mount: the terminal element is disposed on unmount, so a fresh mount
+  // replays the whole transcript from index 0. A module-global index would
+  // carry over and skip the replay, leaving the tab empty after a remount.
+  const lastCommandIndex = React.useRef(0);
   const isDisposed = React.useRef(false);
 
   const createTerminal = (host: HTMLDivElement) =>
