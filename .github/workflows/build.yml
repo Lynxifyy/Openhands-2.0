@@ -74,15 +74,24 @@ jobs:
       - name: Sync Capacitor Android project
         run: npx cap sync android
 
-      - name: Stamp version from package.json
+      - name: Stamp version
         id: version
+        env:
+          # On a release build the tag is authoritative: a hand-made tag that ran
+          # ahead of package.json would otherwise ship APKs named for the old
+          # version inside a release named for the new one.
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           set -euo pipefail
-          version="$(node -p "require('./package.json').version")"
+          if [ -n "${RELEASE_TAG:-}" ]; then
+            version="${RELEASE_TAG#v}"
+          else
+            version="$(node -p "require('./package.json').version")"
+          fi
           # Android versionCode must be a monotonic positive integer; derive it
           # from the semver components so each release is strictly increasing.
-          code="$(node -p "
-            const [maj, min, pat] = require('./package.json').version
+          code="$(APP_VERSION="$version" node -p "
+            const [maj, min, pat] = process.env.APP_VERSION
               .split('-')[0].split('.').map((n) => parseInt(n, 10));
             maj * 1000000 + min * 1000 + (pat || 0);
           ")"
