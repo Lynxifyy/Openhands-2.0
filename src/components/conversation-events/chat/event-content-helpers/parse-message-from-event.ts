@@ -1,6 +1,7 @@
 import { MessageEvent } from "#/types/agent-server/core";
 import i18n from "#/i18n";
 import { I18nKey } from "#/i18n/declaration";
+import { sanitizeDsml } from "#/utils/sanitize-dsml";
 
 export const parseMessageFromEvent = (event: MessageEvent): string => {
   const message = event.llm_message;
@@ -31,12 +32,12 @@ export const parseMessageFromEvent = (event: MessageEvent): string => {
     message.content.some((content) => content.type === "image");
 
   if (!hasImages) {
-    return textContent;
+    return sanitizeDsml(textContent);
   }
 
   // If there are images, try to split by the augmented prompt delimiter
   const delimiter = i18n.t(I18nKey.CHAT_INTERFACE$AUGMENTED_PROMPT_FILES_TITLE);
   const parts = textContent.split(delimiter);
 
-  return parts[0];
+  return sanitizeDsml(parts[0]);
 };
